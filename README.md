@@ -15,7 +15,6 @@ GOTaxon: Representing the evolution of biological functions in the Gene Ontology
 
 ******************************************************
 The GO taxon constraints are included in file GOTaxonConstraints.txt
-
 ******************************************************
 The format is like this:
 
@@ -28,4 +27,31 @@ The format is like this:
           There are also some GO terms that have representation: ">Chebi|" followed by NCBITaxon ids. These representation indicates that the taxon constraint for this term comes from Chebi info only.
 
            example: 'GO:0000718' => '>Chebi|NCBITaxon:1',
+
+
+******************************************************
+For simplicity of usage, the GO taxon constraints are also presented in a differnt format.
+In file GOTaxonConstraintsExtantSpecies.csv
+The file indicates whether a GO term should be annotated to certain extant species. 
+******************************************************
+
+The format is like this:
+         each line lists if the GO term in the first column could be annotated for each species in other columns 
+         The first row lists extant species in 5 letter syns, for details check http://pantherdb.org/panther/summaryStats.jsp and https://www.uniprot.org/help/taxonomy)				
+         
+         example:
+         ## For the numbers in the table:																	
+         ## 2 means a GO term could be annotated to the species
+         ## -1 means a GO term should not be annotated to the species				
+         ## 0 also means a GO term should not be annotated to the species (Different codes used as reasons for forbidden annotation are different. You could treat 0 and -1 as the same)
+         
+         GOid	CANAL	TAKRU	ORYSJ
+GO:1903097		2	2	2
+GO:2001001		2	2	2
+GO:0006285		2	2	2
+GO:0015777		2	2	2
+GO:0061408		-1	-1	-1
+
+This means GO:2001001 could be annotated with CANAL(Candida albicans), TAKRU (Takifugu rubripes) and ORYCJ (Oryza sativa subsp. japonica (Rice)),  while GO:0061108 could not be annotated with these species.
+
 
