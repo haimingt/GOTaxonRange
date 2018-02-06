@@ -45,12 +45,12 @@ The format is like this:
          ## -1 means a GO term should not be annotated to the species				
          ## 0 also means a GO term should not be annotated to the species (Different codes used as reasons for forbidden annotation are different. You could treat 0 and -1 as the same)
          
-         GOid	CANAL	TAKRU	ORYSJ
-GO:1903097		2	2	2
-GO:2001001		2	2	2
-GO:0006285		2	2	2
-GO:0015777		2	2	2
-GO:0061408		-1	-1	-1
+         GOid	       CANAL	TAKRU	ORYSJ
+         GO:1903097		2	2	2
+         GO:2001001		2	2	2
+         GO:0006285		2	2	2
+         GO:0015777		2	2	2
+         GO:0061408		-1	-1	-1
 
 This means GO:2001001 could be annotated with CANAL(Candida albicans), TAKRU (Takifugu rubripes) and ORYCJ (Oryza sativa subsp. japonica (Rice)),  while GO:0061108 could not be annotated with these species.
 
