@@ -1,115 +1,198 @@
-### This is the main script to process go-plus.obo file
-### By Haiming Tang, modified 06/08/2018
+## this new version of goplusparse uses the file that lists all children of a go term
+## to construct taxon constraints
+## the basic idea is that all children of a go term that has a pre-defined taxon constraint should have the same taxon constraint
+## then, we can merge these constraints!
 
-#use strict;
-#use warnings;
+## review April 10, 2017
+## modifed Haiming Tang, 6/8/018
+
+
+my $limit = shift;
+use strict;
+use warnings;
+#use HAIMING::Ancestor;
 use 5.10.1;
 use Data::Dumper;
+#use Switch;
+## this script is for parsing of go-plus.obo file
 
 $Data::Dumper::Sortkeys = 1;
 
-my $goplusfile = "../rawData/go-plus.obo";
+my $infile = "../rawData/go-plus.obo";
 
-my %termName; # $TermName{$id} = $name 
-my %alter; # $Alter{$alter_id} = $id
-my %strictRelation; # strict relationships: is_a, part_of, occurs_in 
-my %otherRelation; # 2 level, first level is from term type to term type
-my %relationCount; # inlcuding counts of relationships, from term type to type, counts
-my %termCount; # counts of each differnt type of terms
+my %name; # store name of GO terms as well as others
+my %isa; # store isa information of go terms, point go term to mom
 
-############# PARSE FROM GO-PLUS ###########################
-
-my %termName; # $TermName{$id} = $name 
-my %alter; # $Alter{$alter_id} = $id
-my %strictRelation; # strict relationships: is_a, part_of, occurs_in 
-my %otherRelation; # 2 level, first level is from term type to term type
-my %relationCount; # inlcuding counts of relationships, from term type to type, counts
-my %termType; # counts of each differnt type of terms
+my %onlyin; # store constraint info for go terms, specially only in taxonid
+my %chebi; # store chebi info for go terms
+my %uberon; # store uberon/pato... info for go terms
 
 my $name;
 my @goterm;
-my $type;
+my %alt;
+my %type;
+my %type2;
+my %relation;
+my %othercons;
+my %regulates;
+my %skip;
 
-open IN, "< $goplusfile" or die "cannot open $goplusfile\n";
+### basic idea use onlyin chebi uberon as constraint
+
+open IN, "< $infile" or die;
 while(<IN>){
-    my $line = $_;
-    chomp($line);
-    
-    if ($line =~ /\[Term\]/){
-        if ($name){ 
-            foreach my $goterm (@goterm){
-                $termName{$goterm} = $name;
-            }
-        }
-        @goterm = ();
-    }
-    
-    elsif ($_ =~ /^id: (([A-Za-z]+):[0-9]+)/){
-	$type = $2;
-	$termType{$type} ++;
-	push(@goterm,$1);
-    }
-    elsif ($_ =~ /name: (.*)/){
-        $name = $1;
-    }
-    elsif ($_ =~ /alt_id: ([A-Za-z]:[0-9]+)/){
-        $alter{$1} = $goterm[0];  # is the direction wrong??? CHECK LATER 
-        push(@goterm,$1);
-	$termType{$type}++;
-    }
-    elsif ($_ =~ /is_a:.* (([A-Za-z]+):[0-9]+)/){
-        foreach my $goterm (@goterm){
-	    my $relation = "is_a:$type:$2";
-	    $strictRelation{$relation}{$goterm}{$1} =1;
-	    $relationCount{$relation} ++;
-        }
-    }
-    elsif ($line =~ /relationship: (\w+) (([A-Za-z]+):[0-9]+)/){
-      my $relation = "$1:$type:$3";
-      $relationCount{$relation}++;
-            
+  my $line = $_;
+  
+  if ($line =~ /\[Term\]/){
+    if ($name){
       foreach my $goterm (@goterm){
-	  if (($1 eq 'part_of') or ($1 eq 'occurs_in')){
-	      $strictRelation{$relation}{$goterm}{$2} = 1;
-	  }
-	  else{
-	      $otherRelation{$relation}{$goterm}{$2} =1;
-	  }
+	$name{$goterm} = $name;
       }
     }
+    
+    @goterm = ();
+  }
+  if ($_ =~ /^id: (([A-Za-z]+):[0-9]+)/){
+    
+    $type2{$2} ++;
+    push(@goterm,$1);
+    
+    if ($1 =~ /$limit/){
+      print "parse goplus, stop at $limit\n";
+    }
+  }
+  
+
+  if ($_ =~ /name: (.*)/){
+    $name = $1;
+  }
+
+
+  if ($_ =~ /alt_id: ([A-Za-z]:[0-9]+)/){
+    $alt{$goterm[0]} = $1;
+#    push(@goterm,$1);
+  }
+  
+
+  if ($_ =~ /is_a:.* ([A-Za-z]+:[0-9]+)/){
+    foreach my $goterm (@goterm){
+      $isa{$goterm} .= $1.";";
+      $regulates{$goterm} .= $1.";";
+    }
+  }
+  #    if ($_ =~ /intersection_of:.*([A-Za-z]+:[0-9]+)/){
+ #       foreach my $goterm (@goterm){
+  #          $isa{$goterm} .= $1.";";
+   #         #$iso{$goterm} .= $1.";";
+  #    }
+  #}
+  
+  if ($line =~ /relationship: (\w+) ([A-Za-z]+:[0-9]+)/){
+    my $relation = $1;
+    $relation{$relation} ++;
+    my $c = $2;
+    foreach my $goterm (@goterm){
+      
+      if ($goterm ne $c){
+	$isa{$goterm} .= $c.";";
+      }
+      
+      if ($goterm =~ /(\w+):/){
+	$goterm = $1;
+	if (($relation =~ /regulate/) or ($relation =~ /part/)){
+	  $regulates{$goterm} .= $c.";";
+	  
+	}
+	  if ($c =~ /CHEBI/){
+	    $chebi{$goterm} .= $c.";";
+	  }
+	elsif ($c =~ /NCBITaxon/){
+	  
+	  $onlyin{$goterm}{$relation}++;
+#	  $onlyin{$goterm}{$relation} .= $c.";";
+	}
+	
+	else{
+	  next if $c =~ /GO:/;
+	  $uberon{$goterm} .= $c.";";
+	  if ($c =~ /([A-Za-z]+:)/){
+	    $type{$1} = 1;
+	  }
+	}		
+      }
+      else{
+	$othercons{$goterm} .= $c.";";
+      }
+    }	
+  }
 }
 close IN;
 
-my $termSta = "../statistics/termStatistics.txt";
-unless (-e $termSta){
-    open OUT, "> $termSta" or die "cannot open $termSta\n";
-    print OUT Dumper(\%termType);
-    close OUT;
-}
-
-my $nameSta = "../statistics/termName.txt";
-unless (-e $nameSta){
-    open OUT, "> $nameSta" or die "cannot open $nameSta\n";
-    print OUT Dumper(\%termName);
-    close OUT;
-}
-
-my $typeSta = "../statistics/relationTypeStatistics.txt";
-unless (-e $typeSta){
-    open OUT, "> $typeSta" or die "cannot open $typeSta\n";
-    print OUT Dumper(\%relationCount);
-    close OUT;
-}
-
-
+print Dumper(\%onlyin);
+#print Dumper(\%name);
+#print Dumper(\%relation);
 
 =pod
-
-################################
-
 $isa{'NCBITaxon:5476'} = 'NCBITaxon:4892';
 $isa{'NCBITaxon:5833'} = 'NCBITaxon:5820';
 $isa{'NCBITaxon:3055'} = 'NCBITaxon:33090';
+
+
+open ONLYIN, "> onlyin_test.txt" or die;
+print ONLYIN Dumper(\%onlyin);
+close ONLYIN;
+
+open ONLYIN, "> uberon.txt" or die;
+print ONLYIN Dumper(\%uberon);
+close ONLYIN;
+
+open ONLYIN, "> otherCons.txt" or die;
+print ONLYIN Dumper(\%othercons);
+close ONLYIN;
+
+
+
+open TYPE, "> type.txt";
+open NAME, "> name.txt";
+open ISA, "> isa.txt";
+open CHEBI, "> chebi.txt";
+open ONLYIN, "> onlyin.txt";
+open UBERON, "> uberon.txt";
+open RELA, "> relation.txt";
+open REGU, "> regulates.txt";
+print OTHER Dumper(\%othercons);
+print RELA Dumper(\%relation);
+say "Ptype";
+print TYPE Dumper(\%type);
+say "Ptype2";
+print TYPE Dumper(\%type2);
+
+say "Pname";
+print NAME Dumper(\%name);
+
+say "Pisa";
+print ISA Dumper(\%isa);
+
+say "Pchebi";
+print CHEBI Dumper(\%chebi);
+
+say "Ponlyin";
+
+say "Puberon";
+print UBERON Dumper(\%uberon);
+
+say "Pregulates";
+print REGU Dumper(\%regulates);
+
+close REGU;
+close RELA;
+close OTHER;
+close TYPE;
+close NAME;
+close ISA;
+close CHEBI;
+close ONLYIN;
+close UBERON;
 
 
 my %isachildren;
@@ -270,7 +353,7 @@ foreach my $key (keys %combineCons){
       next;
     }
     if ($key =~ /GO:0090632/){
-      $value = ">Gain|NCBITaxon:40674;>Loss|NCBITaxon:9606";
+      $value = ">Gain|NCBITaxon:404677;>Loss|NCBITaxon:9606";
       $goCons{$key}{5} = $key;
       next;
     }
