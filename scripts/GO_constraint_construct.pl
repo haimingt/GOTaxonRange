@@ -1,21 +1,16 @@
 ### This is the main script to process go-plus.obo file
 ### By Haiming Tang, modified 06/08/2018
 
-#use strict;
+use strict;
 #use warnings;
 use 5.10.1;
 use Data::Dumper;
+use List::Util qw(shuffle);
 
 $Data::Dumper::Sortkeys = 1;
 
 my $goplusfile = "../rawData/go-plus.obo";
 
-my %termName; # $TermName{$id} = $name 
-my %alter; # $Alter{$alter_id} = $id
-my %strictRelation; # strict relationships: is_a, part_of, occurs_in 
-my %otherRelation; # 2 level, first level is from term type to term type
-my %relationCount; # inlcuding counts of relationships, from term type to type, counts
-my %termCount; # counts of each differnt type of terms
 
 ############# PARSE FROM GO-PLUS ###########################
 
@@ -29,6 +24,10 @@ my %termType; # counts of each differnt type of terms
 my $name;
 my @goterm;
 my $type;
+my %skip;
+my %isa; # for is_a of NCBITaxon only
+
+my $maxround = 5;
 
 open IN, "< $goplusfile" or die "cannot open $goplusfile\n";
 while(<IN>){
@@ -60,8 +59,12 @@ while(<IN>){
     elsif ($_ =~ /is_a:.* (([A-Za-z]+):[0-9]+)/){
         foreach my $goterm (@goterm){
 	    my $relation = "is_a:$type:$2";
-	    $strictRelation{$relation}{$goterm}{$1} =1;
+	    $strictRelation{$goterm}{$1} = $relation;
 	    $relationCount{$relation} ++;
+	    my $toterm = $1;
+	    if ($goterm =~ /NCBITaxon/){
+		$isa{$goterm} = $toterm;
+	    }
         }
     }
     elsif ($line =~ /relationship: (\w+) (([A-Za-z]+):[0-9]+)/){
@@ -70,10 +73,10 @@ while(<IN>){
             
       foreach my $goterm (@goterm){
 	  if (($1 eq 'part_of') or ($1 eq 'occurs_in')){
-	      $strictRelation{$relation}{$goterm}{$2} = 1;
+	      $strictRelation{$goterm}{$2} = $relation;
 	  }
 	  else{
-	      $otherRelation{$relation}{$goterm}{$2} =1;
+	      $otherRelation{$goterm}{$2} = $relation;
 	  }
       }
     }
@@ -101,162 +104,138 @@ unless (-e $typeSta){
     close OUT;
 }
 
-
-
-=pod
-
 ################################
 
 $isa{'NCBITaxon:5476'} = 'NCBITaxon:4892';
 $isa{'NCBITaxon:5833'} = 'NCBITaxon:5820';
 $isa{'NCBITaxon:3055'} = 'NCBITaxon:33090';
 
-
-my %isachildren;
-foreach my $goterm (keys %isa){
-  next unless $goterm =~ /GO/;
-  my $line = $isa{$goterm};
-  while($line =~ /(\w+:\w+)/g){
-    my $term = $1;
-    if ($term =~ /GO/){
-      $isachildren{$term}{$goterm} =1 ;
-    }
-  }
-}
-
-open ISA, "> isachildren.txt" or die;
-print ISA Dumper(\%isachildren);
-close ISA;
-
-
-my %pthr_NCBI;
-
-open PN, "< pthr_NCBI.txt" or die;
-while(<PN>){
-  chomp;
-  my @array = split(/\t| +/);
-  my $size = @array;
-  $pthr_NCBI{lc($array[0])} = "NCBITaxon:".$array[$size-1];
-}
-close PN;
-
-$pthr_NCBI{'gain'} = 'Gain';
-$pthr_NCBI{'loss'} = '>Loss';
-
-#print Dumper(\%pthr_NCBI);
-
 my %goCons;
-my %uberonCon;
+my %cons; # store the cons from onlyin and manual, not limited to GO terms 
+foreach my $term1 (keys %strictRelation){
+    next if $term1 =~ /NCBITaxon/;
+    foreach my $term2 (keys %{$strictRelation{$term1}}){
+	if ($strictRelation{$term1}{$term2} =~ /(\w+):\w+:NCBITaxon/){
+	    $cons{$term1} .= $1."|".$term2.";";
+	    my $re = $1;
+	    if ($term1 =~ /GO:/){
+		my $relation = 'Gain';
+		if ($re =~ /never/){
+		    $relation = 'Loss';
+		}
+		if ($term2 =~ /NCBITaxon/){
+		    $goCons{$term1}{2} .= $relation."|".$term2.";";
+		}
+	    }
+	}
+    }
+}
+foreach my $term1 (keys %otherRelation){
+    next if $term1 =~ /NCBITaxon/;
+    foreach my $term2 (keys %{$otherRelation{$term1}}){
+	if ($otherRelation{$term1}{$term2} =~ /(\w+):\w+:NCBITaxon/){
+	    $cons{$term1} .= $1."|".$term2.";";
+	}
+	my $re = $1;
+	if ($term1 =~ /GO:/){
+	    my $relation = 'Gain';
+	    if ($re =~ /never/){
+		$relation = 'Loss';
+	    }
+	    if ($term2 =~ /NCBITaxon/){
+		$goCons{$term1}{2} .= $relation."|".$term2.";";
+	    }
+	}
+    }
+}
+## get the manual curation list
+open MAN, "< ../rawData/manualCurationList_longform.csv" or die;
+while(<MAN>){
+    chomp;
+    my @a = split(/,/);
+    my $con = $a[1];
+    $con =~ s/\([A-Za-z <>-]+\)//g;
+    $cons{$a[0]} = "manual:".$con;
+    $goCons{$a[0]}{3} = $con;
+}
+close MAN;
+
+my $uberonConf = "../constraints/uberon_PO_FAO_CL.constraints.txt";
+
+my %uberonCon; #store the constraints of uberon PO FAO CL terms
 my %chebiCon;
 my @rounts;
-&constructUBERON;
+my %othercons;
 
+unless (-e $uberonConf){
+    &constructUBERON;
 
-&UBERON_go;
-&ONLYIN_NEVERIN_go;
+    open UBERON, "> $uberonConf" or die;
+    print UBERON Dumper(\%uberonCon);
+    close UBERON;
+}
+else{
+    open UBERON, "< $uberonConf" or die;
+    while (<UBERON>){
+	if ($_ =~ /([\w:]+)\' => \'(.*)\'/){
+	    my $go = $1; my $con = $2;
+	    next unless $con;
+	    unless ($con =~ /;$/){
+		$con = $con.";";
+	    }
+	    $uberonCon{$go} = $con;
+	}
+    }
+    close UBERON;
+}
 
 
 my $goterm;
-open IN, "< chebi.go_ancestor.txt" or die;
+open IN, "< ../constraints/chebi.go_ancestor.txt" or die;
 while(<IN>){
   if ($_ =~ /(GO:[0-9]+)/){
     $goterm = $1;
   }
   my %single = eval($_);
-  my $key = (keys %single)[0];
+  my $key = (keys %single)[0]; next unless $key;
   if ($key =~ /:/){
     $goCons{$goterm}{4} = ">Chebi|".$single{$key};
   }
 }
 close IN;
 
+# propagate the uberon constraints to GO terms
 
-open SUM, "< Haiming_summary.csv" or die;
-while(<SUM>){
-  chomp;
-  my @array = split(/,/);
-  my $go = $array[1];
-  my $info = $array[2];
-  $info = lc $info;
-
-  my $out;
-
-  while( $info =~ /([A-Za-z-]+)/g){
-    my $target = $pthr_NCBI{$1};
- #   print $1."\t";
-    if (($target =~ /Gain/) or ($target =~/Loss/)){
-      $out .= $target."\|";
+foreach my $term1 (keys %strictRelation){
+    next unless $term1 =~ /GO:/;
+    foreach my $term2 (keys %{$strictRelation{$term1}}){
+	if ($uberonCon{$term2}){
+	    $goCons{$term1}{1} = $uberonCon{$term2};
+	}
     }
-    else{
-      $out .= $target.";";
+}
+foreach my $term1 (keys %otherRelation){
+    next unless $term1 =~ /GO:/;
+    foreach my $term2 (keys %{$otherRelation{$term1}}){
+	if ($uberonCon{$term2}){
+	    $goCons{$term1}{1} = $uberonCon{$term2};
+	}
     }
-  }
-  # print "\n";
-  $goCons{$go}{3} = $out;
 }
-close SUM;
-
-my %allchildren;
-
-my $child_file = "goterm_children.extra.csv";
-open IN, "< $child_file" or die;
-while(<IN>){
-  chomp;
-  my @arr = split(/,/);
-  my $size = @arr;
-  foreach my $i (1..$size-1){
-    $allchildren{$arr[0]}{$arr[$i]} =1;
-  }
-}
-close IN;
 
 my %combineCons;
 my %combine_construct;
 
-open COM, "> goCons1.txt" or die;
-print COM Dumper(\%goCons);
-close COM;
-
-
-&combine_construct_sub;
-
-open COM, "> goCons2.txt" or die;
-print COM Dumper(\%goCons);
-close COM;
-
-&combine_construct_sub;
-open COM, "> goCons3.txt" or die;
-print COM Dumper(\%goCons);
-close COM;
-
-&combine_construct_sub;
-
-open COM, "> goCons4.txt" or die;
-print COM Dumper(\%goCons);
-close COM;
-
-
-open COM, "> combineCons.txt" or die;
-print COM Dumper(\%combineCons);
-close COM;
-
-open COM, "> combine_construct.txt" or die;
-print COM Dumper(\%combine_construct);
-close COM;
-
-
-# ***************************************
-
-# then do a touch up
+# first, a touch up is needed
 my $line;
 my $GOterm;
 my $value;
 
-foreach my $key (keys %combineCons){
-  if ($key =~ /GO/){
+foreach my $key (keys %termName){
+  if ($key =~ /GO:/){
     $GOterm = $key;
-    my $name = $name{$key};
-    my $goname = $name{$key};
+    my $name = $termName{$key};
+    my $goname = $termName{$key};
 
     if ($key =~ /GO:0009432/){
       $value = ">Gain|NCBITaxon:2;";
@@ -304,30 +283,13 @@ foreach my $key (keys %combineCons){
   }
 }
 
-open COM, "> goCons5.txt" or die;
-print COM Dumper(\%goCons);
-close COM;
+&combine_construct;
 
-
-&combine_construct_sub;
-
-open COM, "> goCons6.txt" or die;
-print COM Dumper(\%goCons);
-close COM;
-
-
-&combine_construct_sub;
-
-open COM, "> goCons7.txt" or die;
-print COM Dumper(\%goCons);
-close COM;
-
-
-open COM, "> combineCons_afterTouch.txt" or die;
+open COM, "> ../constraints/goCons.txt" or die;
 print COM Dumper(\%combineCons);
 close COM;
 
-open COM, "> combine_construct_afterTouch.txt" or die;
+open COM, "> ../constraints/goCons_constructlog.txt" or die;
 print COM Dumper(\%combine_construct);
 close COM;
 
@@ -462,382 +424,291 @@ sub process_bac{
   }
 }
 
-
-
 sub  constructUBERON{
-  foreach my $term (keys %name){
-    if ($term =~ /PO:/) {
-      $uberonCon{$term} = 'NCBITaxon:3193';   
-    }
-    elsif ($term =~ /FAO:/){
-      $uberonCon{$term} = 'NCBITaxon:451864';
-    }
-    next unless $term =~ /UBERON/;
-    if (exists $othercons{$term}){
-     #  print "$term\n";
-      if ($othercons{$term} =~ /(NCBITaxon:[0-9]+)/){
-	$uberonCon{$term} = $1;
-      }
-    }        
-  }
-
-  open UBER, "> uberonConstraint1.txt" or die;
-  print UBER Dumper(\%uberonCon);
-  close UBER;
-
-  &uberonCycle;
-  &uberonCycle;
-  &uberonCycle;
-
-  open UBER, "> uberonConstraint1.5.txt" or die;
-  print UBER Dumper(\%uberonCon);
-  close UBER;
-
-  foreach my $term (keys %name){
-    next unless $term =~ /UBERON/;
-    if (exists $uberonCon{$term}){
-      next;
-    }
-    else{
-      $uberonCon{$term} = 'NCBITaxon:33213';
-    }
-  }
-  open UBER, "> uberonConstraint1.6.txt" or die;
-  print UBER Dumper(\%uberonCon);
-  close UBER;
-
-
-  foreach my $term (keys %name){
-    @rounts = ();
-#    next unless $term =~ /CL:/;
-    next if $term =~ /(GO:)|(PO:)|(UBERON:)|(FAO:)|(CHEBI:)/ ;
-    if (exists $othercons{$term}){      
-      while ($othercons{$term} =~ /([A-Za-z]+:[0-9]+)/g){
-	my $taxonc = $uberonCon{$1};
-	if ($taxonc){
-	  push(@rounts,$taxonc);
+    # the subroutine to get constraints for uberon, po, fao, cl terms
+    foreach my $term (keys %termName){
+	if ($term =~ /PO:/) {
+	    $uberonCon{$term} = 'NCBITaxon:33090'; # plants get Viridiplantae   
 	}
-      }
-      my $theTaxon = &mostTaxon(\@rounts);
-      if ($theTaxon){
-	$uberonCon{$term} = $theTaxon;
-      }
+	elsif ($term =~ /FAO:/){
+	    $uberonCon{$term} = 'NCBITaxon:4751'; # fungi get fungi
+	}
+	elsif ($term =~ /UBERON:/){
+	    next if ($term =~ /0000061/);
+	    next if ($term =~ /0000465/);
+	    next if ($term =~ /0001062/);
+	    next if ($term =~ /0000468/);
+	    
+	    $uberonCon{$term} = 'NCBITaxon:33208'; # animals get metazoa
+	}
+	elsif ($term =~ /CL:/){
+	    $uberonCon{$term} = '';
+	}
+	# a few exceptions exist, high level terms
     }
-  }
 
-  open UBER, "> uberonConstraint2.txt" or die;
-  print UBER Dumper(\%uberonCon);
-  close UBER;
+    my %previousCon;
 
+    my $c =0;
+    while(1){	
+	&uberonCycle;
+	my $diff=  &compareCons(\%previousCon,\%uberonCon);
+	last if $diff < 1;
+	%previousCon = %uberonCon;
+	$c++;
+	last if $c > $maxround;
+    }
 }
+
+
+sub compareCons{
+    my $ref1 = shift;
+    my $ref2 = shift;
+    
+    # check if constraints are the same 
+
+    my @set1 = keys %{$ref1};
+    my @set2 = keys %{$ref2};
+
+    unless (&identical(\@set1,\@set2)){
+	return 1;
+    }
+
+    foreach my $term (@set1){
+	my $l1 = $ref1->{$term};
+	my $l2 = $ref2->{$term};
+
+	my @l1 ; my @l2;
+	while($l1 =~ /(NCBITaxon:[0-9]+)/g){
+	    push(@l1,$1);
+	}
+	while($l2 =~ /(NCBITaxon:[0-9]+)/g){
+	    push(@l2,$1);
+	}
+	unless (&identical(\@l1,\@l2)){
+	    return 1;
+	}
+    }
+    return 2;
+}
+
 
 sub uberonCycle{
-  foreach my $term (%othercons){
-    next if (exists $uberonCon{$term});
-    my $key = $othercons{$term};
-    @rounts = ();
-    while ($key =~ /([A-Za-z]+:[0-9]+)/g){
-      my $taxonc = $uberonCon{$1};
-      if ($taxonc){
-	push(@rounts,$taxonc);
-      }
+# simple uberon Cycle, where     
+    foreach my $uterm (shuffle keys %uberonCon){
+	my $hashref = &getRoute($uterm);
+	my @taxons;
+#	my @set;
+	while($uberonCon{$uterm} =~ /(NCBITaxon:[0-9]+)/g){
+	    push(@taxons,$1);
+	}
+	foreach my $level (keys %{$hashref}){
+	    foreach my $term (keys %{$hashref->{$level}}){
+		if ($cons{$term}){
+		    my @tmp = split(/;/,$cons{$term});
+		    foreach my $tmp(@tmp){
+			my @next = split(/\|/,$tmp);
+			next if $next[0] =~ /never/;
+			push(@taxons,$next[1]);
+		    }
+		}
+	    }
+	}
+	my $taxon = &mostTaxon(\@taxons);
+	if ($taxon){	 	 
+	    $uberonCon{$uterm} = "Gain|".$taxon;
+#	    $cons{$uterm} .= "uberonCycle:".$taxon ;
+	}
     }
-    my $theTaxon = &mostTaxon(\@rounts);
-    if ($theTaxon){
-      $uberonCon{$term} = $theTaxon;
-    }
-  }
 }
 
-sub UBERON_go{
+sub getRoute{
+    my $term = shift;
+    my %route;
+    my $n = 1;
+    my @temp; push(@temp,$term);
+    my $curSTerm = \@temp;
+    %skip = ();
+    while(1){		
+	my $terms = &nextlevel($curSTerm);
 
-  foreach my $thisterm (keys %uberon){
-    if ($thisterm =~ $limit){
-      print "check point for $goterm\n";
+	my @temp;
+	foreach my $iterm (@$terms){
+	    $term =~ /(\w+):/; my $type1 = $1;
+	    $iterm =~ /(\w+):/; my $type2 = $1;
+	    if ($type1 eq $type2){
+		unless ($cons{$iterm}){
+		    unless ($skip{$iterm}){
+			push(@temp,$iterm);
+		    }
+		}
+	    }
+	    $route{$n}{$iterm} =1;
+	    $skip{$iterm} =1;
+	}
+	$n++;
+	if (@temp){
+	    $curSTerm = \@temp;
+	}	
+	else{
+	    last;
+	}
     }
-    my $uberonterm = $uberon{$thisterm};
-    my %taxons;
-    while($uberonterm =~ /([A-Za-z]+:[0-9]+)/g){
-      my $taxon = $uberonCon{$1};
-      if ($taxon){
-	$taxons{$taxon} = 1;
-      }
+    foreach my $key (keys %{$otherRelation{$term}}){
+	$route{'other'}{$key} =1;
     }
-    my @taxons = keys %taxons;
-    my $taxon;
-    my $size = @taxons;
-    if ($size > 1){
-      print "UBERON LIMIT: $goterm\n";
-      print Dumper(\@taxons);
-    }
-    if ($taxons[0]){
-      $taxon = &mostTaxonLoss(\@taxons);
-    }
-    if ($taxon){
-      $taxon = ">Uberon|".$taxon;
-      $goCons{$thisterm}{1} = $taxon;
-    }
-  }
-}
-
-sub ONLYIN_NEVERIN_go{
-  foreach my $goterm (keys %onlyin){
-    my $con;
-    foreach my $type (keys %{$onlyin{$goterm}}){
-      if ($type =~ 'only_in'){
-	my $value = $onlyin{$goterm}{$type};
-	$con .= ">Gain|".$value.";"; 
-      }
-      elsif ($type =~ 'never_in'){
-	my $value = $onlyin{$goterm}{$type};
-	$con .= ">Loss|".$value.";"; 
-      }
-    }
-    if ($con){
-      $goCons{$goterm}{2} = $con;
-    }
-  }
-}
-
-
-sub combine_construct_sub{
-  foreach my $goterm (keys %allchildren){
-    next unless $goterm =~ /GO:/;
     
-    my %children;
-    my @set1 = keys %{$allchildren{$goterm}};
-    my @set2 = keys %{$isachildren{$goterm}};
-    foreach my $go (@set1){
-      $children{$go}++;
-    }
-    foreach my $go (@set2){
-      $children{$go}++;
-    }
-    my @children = keys %children;
-    foreach my $type (1..5){
-      my $con = $goCons{$goterm}{$type};
-      if ($con =~ /NCBITaxon:[0-9]+/){
-	foreach my $child (@children){
-	  if ($limit){
-	    next unless( $child =~ /$limit/);
-	  }
-	  $combine_construct{$child} .= "From $goterm: ".$con.";";
-	}
-      }
-    }
-  }
-
-  foreach my $goterm (keys %goCons){
-
-    if ($limit){
-      next unless( $goterm =~ /$limit/ );
-    }
-
-#    next if (exists $combine_construct{$goterm});
-    foreach my $type (1..5){
-      my $con = $goCons{$goterm}{$type};
-      if ($con =~ /NCBITaxon:[0-9]+/){
-	$combine_construct{$goterm} .= "From $goterm: ".$con.";";
-      }
-    } 
-  }
-
-  foreach my $goterm (keys %combine_construct){
-    if ($limit){
-      next unless( $goterm =~ /$limit/ );
-    }
-    my $infoline = $combine_construct{$goterm};
-    my $newline = &processline($infoline);
-    $combineCons{$goterm} = $newline;
-
-    $goCons{$goterm}{5} = $newline;
-    print "\n*****\nWorking on $goterm infoline: $infoline\n";
-    print "Workong on $goterm newline: $newline\n";
-  }
+    return \%route;
 }
 
-sub processline{
-  my $infoline = shift;
-  my %info;
-  while ($infoline =~ /([a-zA-z_]+)\|([NCBITaxon:;0-9]+)/g){
-    my $type = $1;
-    my $string = $2;
-    while ($string =~ /(NCBITaxon:[0-9]+)/g){
-      $info{$type}{$1} = 1;
-    }
-  }
-  my $gain;
-  my %all;
-  foreach my $t1 (keys %{$info{'Gain'}}){
-    $all{$t1} =1;
-  }
-  my @arr = keys %all;
-  $gain = &mostTaxon(\@arr);
-
-
-  my $loss;
-  %all = {};
-  foreach my $t1 (keys %{$info{'Loss'}}){
-    $all{$t1} =1;
-  }
-  my @arr = keys %all;
-  $loss = &mostTaxonLoss(\@arr);
-  my @gain;
-  my @loss;
-
-  while ($gain =~ /(NCBITaxon:[0-9]+)/g){
-    push(@gain,$1);
-  }
-  while ($loss =~ /(NCBITaxon:[0-9]+)/g){
-    push(@loss,$1);
-  }
-  
-  my $uberon;
-  my %all;
-  foreach my $t1 (keys %{$info{'Uberon'}}){
-    $all{$t1} =1;
-  }
-  my @arr = keys %all;
-  $uberon = &mostTaxon(\@arr);
-  my @uberon;
-  while ($uberon =~ /(NCBITaxon:[0-9]+)/g){
-    push(@uberon,$1);
-  }
-
-  my %gh;
-  my @gain_keep;
-  my %visited;
-  if (($uberon[0]) and ($gain[0]) ){
-    foreach my $gain_c (@gain){
-      my $I;
-      foreach my $uberon_c (@uberon){
-	my $i = &Taxoncompare($gain_c,$uberon_c); 
-	if ($i == 1){ # if uberon_c is mom of gain_c
-	  $gh{$gain_c} =1 ;
-	  $I = 1;
-	  $visited{$uberon_c} = 1;
-	  last;
+sub nextlevel{
+    my $aref = shift;
+    my %nextlevel;
+    
+    foreach my $key (@$aref){
+	foreach my $ref (keys %{$strictRelation{$key}}){
+	    $nextlevel{$ref} =1;
 	}
-	elsif ($i == 2) {# if uberon_c is child of gain_c
-	  $gh{$uberon_c} = 1;
-	  $I = 2;
-	  $visited{$uberon_c} = 1;
-	  last;
-	}
-      }
-      if (($I ne 1) and ($I ne 2)){
-	$gh{$gain_c} = 1;
-      }
     }
-    foreach my $uberon_c (@uberon){
-      next if (exists $visited{$uberon_c});
-      $gh{$uberon_c} = 1;
-    }
-  }
-  @gain_keep = keys %gh;
-
-  unless ($uberon[0]){
-    @gain_keep = @gain;
-  }
-  unless ($gain[0]){
-    @gain_keep = @uberon;
-  }
-
-
-  my @loss_keep;
-  foreach my $loss_c (@loss){
-    foreach my $gain_c (@gain_keep){
-      my $i = &Taxoncompare($loss_c,$gain_c);
-      if ($i == 1) { # if gain_c is mom of loss_c
-	push(@loss_keep,$loss_c);
-	print "for $goterm, we keep LOSS $loss_c\n";
-      }
-      elsif (($i == -1) or ($i == 2)){
-	print " while processing $goterm, Strange LOSS: $loss_c GAIN: $gain_c \n";
-      }
-    }
-  }
-
-  my $combined;
-  if ($gain_keep[0]){
-    $combined = ">Gain|";
-    foreach my $gain (@gain_keep){
-      $combined .= $gain.";" ;
-    }
-    if ($loss_keep[0]){
-      $combined .= ">Loss|";
-      foreach my $loss (@loss_keep){
-	$combined .= $loss.";";
-      }
-    }
-  }
-
-  my $chebi;
-  my %all;
-  foreach my $t1 (keys %{$info{'Chebi'}}){
-    $all{$t1} =1;
-  }
-  my @arr = keys %all;
-  $chebi = &mostTaxonLoss(\@arr);
-  
-  if ($combined){
-    return $combined;
-  }
-  else{
-    if ($chebi){
-      return ">Chebi|".$chebi;
-    }
-  }
+    my @keys = keys %nextlevel;
+    return \@keys;
 }
 
 
-sub mostTaxonLoss{
-  my $ref = shift;
-  my @taxons = @$ref;
-  my $size = @taxons;
+sub combine_construct{
 
-  if ($size ==1){
-    return $taxons[0];
-  }
+ #   my %previousCon;
 
-  else{
-    my $rest;
-    %skip = {};
-    foreach my $i (0..$size-2){
-      foreach my $j ($i+1..$size-1){
-	if ((exists $skip{$i}) or (exists $skip{$j})){
-          next;
-	}
-        else{
-          my $skip_n = &Taxoncompare($taxons[$i],$taxons[$j]);
-          if ($skip_n ==1){
-            $skip{$i} =1;
-            #say "skipping $taxons[$i]";
-          }
-          elsif ($skip_n ==2){
-            $skip{$j} =1;
-            #say "skipping $taxons[$j]";
-          }
-        }
-      }
+    my $c =0;
+    while(1){
+	print "run combineCycle $c\n";
+	&combineCycle($c);
+#	my $diff=  &compareCons(\%previousCon,\%combineCons);
+
+#	print "differnece is $diff\n";
+#	last if $diff == 2;
+#	%previousCon = %combineCons;
+	$c++;
+	last if $c > $maxround;
     }
-
-    foreach my $i (0..$size-1){
-      next if (exists $skip{$i});
-      my $taxon = $taxons[$i];
-      $rest .= $taxon.";";
-    }
-    return $rest;
-  }
 }
+
+sub combineCycle{
+    my $cycle = shift;
+    
+    foreach my $goterm (keys %termName){
+	next unless $goterm =~ /GO:/;
+
+	my $hashref = &getRoute($goterm);
+        
+	my %gaintaxons;
+	my %losstaxons;
+	my %chebitaxons;
+
+	foreach my $n (1..5){
+	    my $con = $goCons{$goterm}{$n}; next unless $con;
+	    while ($con =~ /([a-zA-z_]+)\|([NCBITaxon:;0-9]+)/g){
+		my $type = $1;
+		my $string = $2;
+		while ($string =~ /(NCBITaxon:[0-9]+)/g){
+		    if ($n ==4){
+			$chebitaxons{$1}{$n}{$goterm} =1;
+		    }
+		    elsif ($type eq 'Gain'){
+			$gaintaxons{$1}{$n}{$goterm} =1;
+		    }
+		    else{
+			$losstaxons{$1}{$n}{$goterm} =1;
+		    }
+		}
+	    }
+	}
+	
+        foreach my $level (sort keys %{$hashref}){
+            foreach my $term (keys %{$hashref->{$level}}){
+		foreach my $n (1..5){
+		    my $con = $goCons{$term}{$n}; next unless $con;
+		    while ($con =~ /([a-zA-z_]+)\|([NCBITaxon:;0-9]+)/g){
+			my $type = $1;
+			my $string = $2;
+			while ($string =~ /(NCBITaxon:[0-9]+)/g){
+			    if ($n ==4){
+				$chebitaxons{$1}{$n}{$term} =1;
+			    }
+			    elsif ($type eq 'Gain'){
+				$gaintaxons{$1}{$n}{$term} =1;
+			    }
+			    else{
+				$losstaxons{$1}{$n}{$term} =1;
+			    }
+			}
+		    }
+		}
+	    }
+	}
+	my @gain = keys %gaintaxons;
+	if (@gain){
+	    my $gain = &mostTaxon(\@gain);
+	    my $source;
+	    while($gain =~ /(NCBITaxon:[0-9]+)/g){
+		foreach my $type (keys %{$gaintaxons{$1}}){
+		    foreach my $term (keys %{$gaintaxons{$1}{$type}}){
+			$source .= "$type:$term;";
+		    }
+		}
+	    }
+	    $combine_construct{$goterm}{$cycle}{'gain'} = $source;
+	    $goCons{$goterm}{5} .= "Gain|".$gain.";";
+	    $combineCons{$goterm}{'Gain'} = $gain;
+	}
+	else{
+	    my @chebi = keys %chebitaxons;
+	    if (@chebi){
+		my $gain = &mostTaxon(\@chebi);
+		my $source;
+		while($gain =~ /(NCBITaxon:[0-9]+)/g){
+		    foreach my $type (keys %{$chebitaxons{$1}}){
+			foreach my $term (keys %{$chebitaxons{$1}{$type}}){
+			    $source .= "$type:$term;";
+			}
+		    }
+		}
+		$combine_construct{$goterm}{$cycle}{'gain'} = $source;
+		$goCons{$goterm}{5} .= "Gain|".$gain.";";
+		$combineCons{$goterm}{'Chebi'} = $gain;
+	    }
+	}
+	my @loss = keys %losstaxons;
+	if (@loss){
+	    my $loss = &mostTaxon(\@loss);
+	    my $source;
+	    while($loss =~ /(NCBITaxon:[0-9]+)/g){
+		foreach my $type (keys %{$losstaxons{$1}}){
+		    foreach my $term (keys %{$losstaxons{$1}{$type}}){
+			$source .= "$type:$term;";
+		    }
+		}
+	    }
+	    $combine_construct{$goterm}{$cycle}{'loss'} = $source;
+	    $goCons{$goterm}{5} .= "Loss|".$loss.";";
+	    $combineCons{$goterm}{'Loss'} = $loss;
+	}
+    
+    }
+}
+
 
 sub mostTaxon{
   my $aref = shift;
   my @arr = @$aref;
   my %taxons;
-  
+
+  unless ($aref){
+      return;
+  }
   foreach my $line (@arr){
-    while ($line =~ /(NCBITaxon:[0-9]+)/g){
+      while ($line =~ /(NCBITaxon:[0-9]+)/g){
+						 
       $taxons{$1} =1;
     }
   }
@@ -845,6 +716,9 @@ sub mostTaxon{
   my $size = @taxons;
   if ($size ==1){
     return $taxons[0];
+  }
+  elsif ($size < 1){
+      return ;
   }
   else{
     my $rest;
@@ -904,8 +778,8 @@ sub Taxoncompare{
     }
   }
 
-  my $taxon = $taxon2;
-  my $current;
+   $taxon = $taxon2;
+   $current = '';
   
   while(1){
     if ($current){
@@ -934,4 +808,12 @@ sub Taxoncompare{
  #   print STDERR "$taxon2 mom: $mum2\n\n";
     return 3;
   }
+}
+
+sub identical {
+    my( $left, $right ) = @_;
+    return 0 if scalar @$left != scalar @$right;
+    my %hash;
+    @hash{ @$left, @$right } = ();
+    return scalar keys %hash == scalar @$left;
 }
