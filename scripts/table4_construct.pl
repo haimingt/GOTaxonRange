@@ -1,4 +1,5 @@
 # get the sources of GO terms
+# in the seed list
 
 use Data::Dumper;
 
@@ -13,101 +14,130 @@ while(<IN>){
 }
 close IN;
 
-my $sourceFile = "../constraints/goCons_constructlog.txt" ;
-my %source;
+my %goterms;
+my %statistics;
 
-my $term ;
-my $round;
+my $manualfile = "../rawData/manualCurationList_longform.csv";
 
-open IN, "< $sourceFile" or die;
+open IN, "< $manualfile" or die;
 while(<IN>){
-    if ($_ =~ /\'(GO:[0-9]+)\' => /){
-	$term =$1;
-    }
-    elsif ($_ =~ /'([0-9])' => /){
-	$round = $1;
-    }
-    elsif ($_ =~ /\'(\w+)\' => \'(.*)\'/){
-	my $type = $1;
-	my $info = $2;
-	next unless $round <1;
-	while($info =~ /([0-9]):(GO:[0-9]+)/g){
-	    $source{$type}{$term}{$round}{$2}{$1} = 1;
-	}
+    chomp;
+    my @a = split(/,/);
+    $statistics{$termType{$a[0]}}{'ManualCuration'}{$a[0]} = 1;
+    $goterms{$termType{$a[0]}}{$a[0]} =1;
+}
+close IN;
+
+my %chebi;
+my $chebifile = "../constraints/chebi.Con.txt";
+
+open IN, "< $chebifile" or die;
+while(<IN>){
+    chomp;
+    if ($_ =~ /(CHEBI:[0-9]+)/){
+	$chebi{$1} =1;
     }
 }
 close IN;
 
-my %goSource;
+my %uberon;
+my $uberonfile = "../constraints/uberon_PO_FAO_CL.constraints.txt";
 
-foreach my $type (sort keys %source){
-    foreach my $term (sort keys %{$source{$type}}){
-	foreach my $key (keys %{$source{$type}{$term}{0}}){
-	    foreach my $n (keys %{$source{$type}{$term}{0}{$key}}){
-		if ($n ne 5){
-		    $goSource{$type}{$term}{$n} =1;
-		}
-	    }
-	}
-	
-	my @tmp ; push (@tmp,$term);
-	my $current = \@tmp;
-	while(1){
-	    my ($termref,$sourceref) = &nextLevel($type,$current);
-	    foreach my $source (@$sourceref){
-		$goSource{$type}{$term}{$source} =1;
-	    }
-
-	    if ($termref->[0] =~ /GO:/){
-		$current = $termref;
-	    }
-	    else{
-		last;
-	    }
-	}
+open IN, "< $uberonfile" or die;
+while(<IN>){
+    chomp;
+    if ($_ =~ /(\w+:[0-9]+)/){
+	$uberon{$1} =1;
     }
 }
+close IN;
 
-my %types;
+my $goplusfile = "../rawData/go-plus.obo";
 
-foreach my $type(keys %goSource){
-    foreach my $term (keys %{$goSource{$type}}){
-	my @source = keys %{$goSource{$type}{$term}};
+my $name;
+my $term;
 
-	my $string = join (';',sort @source);
-	$types{$type}{$string}++;
+open IN, "< $goplusfile" or die "cannot open $goplusfile\n";
+while(<IN>){
+    my $line = $_;
+    chomp($line);
+
+    if ($_ =~ /\[Term\]/){
+	$term = '';
+    }
+    elsif ($_ =~ /^id: (GO:[0-9]+)/){
+	$term = $1;
+    }
+    elsif ($line =~ /relationship: (\w+) ([A-Za-z]+:[0-9]+)/){
+      my $relation = $1;
+      my $m = $2;
+
+#      if ($m =~ /UBERON:/ or $m =~ /PO:/ or $m =~ /FAO/){
+#	  if ($termType{$term} =~ /molecular/){
+#	      print OUT "$term\t$line\n";
+#	  }
+#      }
+      
+      next unless $term =~ /GO:/;
+      if (exists $chebi{$m}){
+	  $statistics{$termType{$term}}{'Chebi/PR'}{$term} = 1;
+	  $goterms{$termType{$term}}{$term} =1;
+      }
+      if (exists $uberon{$m}){
+	  $statistics{$termType{$term}}{'UBERON/PO/FAO/CL'}{$term} = 1;
+	  $goterms{$termType{$term}}{$term} =1;
+      }
+      if ($m =~ /NCBITaxon/){
+	  $statistics{$termType{$term}}{'Only/Never_in taxon'}{$term} = 1;
+	  $goterms{$termType{$term}}{$term} =1;
+      }      
     }
 }
-print "1: From UBERON,PO,FAO,CL\n";
-print "2: From only_in never_in\n";
-print "3: From manual curation\n";
-print "4: From Chebi\n";
+close IN;
 
-print Dumper(\%types);
+my @type = ("molecular_function","cellular_component","biological_process");
+my @source = ("ManualCuration","Only/Never_in taxon","UBERON/PO/FAO/CL","Chebi/PR");
 
-sub nextLevel{
-    my $type = shift;
-    my $aref = shift;
-
-    my %tmpsource; my %tmpTerms;
-    foreach my $term (@$aref){
-	foreach my $key (keys %{$source{$type}{$term}{0}}){
-	    my $indicator = 0;
-	    foreach my $n (keys %{$source{$type}{$term}{0}{$key}}){
-		if ($n ne 5){
-		    $tmpsource{$n} =1;
-		    $indicator =1;
-		}
-	    }
-	    if ($indicator ne 1){		
-		if ($term ne $key){
-		    $tmpTerms{$key} =1;
-		}		
-	    }
-	}
-    }
-    
-    my @tmpterm = keys %tmpTerms;
-    my @tmpsource = keys %tmpsource;
-    return (\@tmpterm,\@tmpsource);
+print ",";
+foreach my $source (@source){
+    print "$source,";
 }
+print "Total from all sources\n";
+
+my $total;
+
+foreach my $type (@type){
+    my @keys = keys %{$goterms{$type}};
+    my $n = @keys;
+    $total += $n;
+}
+
+my %col;
+
+foreach my $type (@type){
+    my $t;
+    print "$type,";
+    foreach my $source (@source){
+	my @keys = keys %{$statistics{$type}{$source}};
+	my $n = @keys;
+	$t += $n;
+	print "$n,";
+	$col{$source} += $n;
+    }
+    my $per =  sprintf("%.2f%%",100*$t/$total);
+
+    print "$t \($per\)\n";
+}
+
+print "Total,";
+
+foreach my $source(@source){
+
+    my $n = $col{$source};
+    my $per =  sprintf("%.2f%%",100*$n/$total);
+
+    print "$n \($per\),";
+}
+
+print "$total\n";
+

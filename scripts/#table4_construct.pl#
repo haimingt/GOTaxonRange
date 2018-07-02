@@ -1,0 +1,17 @@
+# get the sources of GO terms
+# in the seed list
+
+use Data::Dumper;
+
+my $goType = "../statistics/go_Type.txt" ;
+
+my %termType;
+open IN, "< $goType" or die;
+while(<IN>){
+    if ($_ =~ /\'(GO:[0-9]+)\' => \'(\w+)\'/){
+        $termType{$1} = $2;
+    }
+}
+close IN;
+
+my $manual = "../rawData/manualCurationList_longform.csv";
