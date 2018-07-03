@@ -56,6 +56,29 @@ while(<IN>){
 }
 close IN;
 
+open IN, "< $nofile" or die;
+while(<IN>){
+  chomp;
+  my @array = split(/\t|;/);
+  my $size =@array;
+
+  foreach my $i (1..$size-1){
+    my $ncbi = $array[$i];
+    if ($ncbi =~ /NCBI/){
+      if ($alt{$ncbi}){
+	$ncbi = $alt{$ncbi};
+      }
+      else {
+	unless(exists $isa{$ncbi}){
+	  print "check $ncbi\n";
+	}
+      }
+
+      $NO{$array[0]}{$ncbi} =1;
+    }
+  }
+}
+close IN;
 
 my $key;
 my %store;
@@ -92,7 +115,7 @@ close IN;
 
 foreach my $key (keys %store){
   my @yesset = keys %{$YES{$key}};
-
+  my @noset = keys %{$NO{$key}};
   my $info = $keepinfo{$key};
 
   foreach my $yesid (@yesset){
@@ -111,6 +134,24 @@ foreach my $key (keys %store){
     }
   }
 
+  ## conflict test 3: is any evidence in noset a subset or equal to one of the gain ncbitaxon?;
+  foreach my $noid (@noset){
+    my $I =0;
+    foreach my $conid (keys %{$store{$key}{"Gain"}}){
+      if (&isatest($noid,$conid)){
+	my $name =~ $name{$noid};
+	my $toprint = "type_2a: $info\tNO: $noid,child of $conid\n";
+
+	print $toprint;
+      }
+      elsif (&isatest($conid,$noid)){
+	my $name = $name{$noid};
+	my $toprint = "type_2b: $info\tNO: $noid,mom of $conid\n";
+
+	print $toprint;
+      }
+    }
+  }
   
 }
 
