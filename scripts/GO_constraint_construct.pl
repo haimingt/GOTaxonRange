@@ -254,7 +254,8 @@ foreach my $key (keys %termName){
       next;
     }
     
-
+    undef $value;
+    
     if ($goname =~ /response to/){
       &process_res($name,$value);
     }
@@ -282,6 +283,11 @@ foreach my $key (keys %termName){
     }
   }
 }
+
+open COM, "> ../constraints/goConsBeforeCombine.txt" or die;
+print COM Dumper(\%goCons);
+close COM;
+
 
 &combine_construct;
 
@@ -680,7 +686,7 @@ sub combineCycle{
 	}
 	my @loss = keys %losstaxons;
 	if (@loss){
-	    my $loss = &mostTaxon(\@loss);
+	    my $loss = &mostTaxonLoss(\@loss);
 	    my $source;
 	    while($loss =~ /(NCBITaxon:[0-9]+)/g){
 		foreach my $type (keys %{$losstaxons{$1}}){
@@ -699,6 +705,8 @@ sub combineCycle{
 
 
 sub mostTaxon{
+    # return the youngest ceancestors from a group
+    
   my $aref = shift;
   my @arr = @$aref;
   my %taxons;
@@ -749,6 +757,62 @@ sub mostTaxon{
     return $rest;
   }
 }
+
+sub mostTaxonLoss{
+    # return the oldest ceancestors from a group
+    
+  my $aref = shift;
+  my @arr = @$aref;
+  my %taxons;
+
+  unless ($aref){
+      return;
+  }
+  foreach my $line (@arr){
+      while ($line =~ /(NCBITaxon:[0-9]+)/g){
+						 
+      $taxons{$1} =1;
+    }
+  }
+  my @taxons = keys %taxons;
+  my $size = @taxons;
+  if ($size ==1){
+    return $taxons[0];
+  }
+  elsif ($size < 1){
+      return ;
+  }
+  else{
+    my $rest;
+    %skip = ();
+    foreach my $i (0..$size-2){
+      foreach my $j ($i+1..$size-1){
+        if ((exists $skip{$i}) or (exists $skip{$j})){
+          next;
+        }
+        else{
+          my $skip_n = &Taxoncompare($taxons[$i],$taxons[$j]);
+          if ($skip_n ==1){
+            $skip{$i} =1;
+#            say "skipping $taxons[$i], mom of $taxons[$j]";
+          }
+          elsif ($skip_n ==2){
+            $skip{$j} =1;
+ #           say "skipping $taxons[$j], mom of $taxons[$i]";
+          }
+        }
+      }
+    }
+    foreach my $i (0..$size-1){
+      next if (exists $skip{$i});
+      my $taxon = $taxons[$i];
+      $rest .= $taxon.";";
+    }
+    return $rest;
+  }
+}
+
+
 sub Taxoncompare{
   my $taxon1 = shift;
   my $taxon2 = shift;
