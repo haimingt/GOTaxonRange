@@ -686,7 +686,10 @@ sub combineCycle{
 	}
 	my @loss = keys %losstaxons;
 	if (@loss){
-	    my $loss = &mostTaxonLoss(\@loss);
+	    # basically, a loss contraint should not be older than the gain constraints
+	    my $gaininfo = $combineCons{$goterm}{'Gain'}.";".$combineCons{$goterm}{'Chebi'};
+	    
+	    my $loss = &mostTaxonLoss($gaininfo,\@loss);
 	    my $source;
 	    while($loss =~ /(NCBITaxon:[0-9]+)/g){
 		foreach my $type (keys %{$losstaxons{$1}}){
@@ -761,27 +764,52 @@ sub mostTaxon{
 sub mostTaxonLoss{
     # return the oldest ceancestors from a group
     
-  my $aref = shift;
-  my @arr = @$aref;
-  my %taxons;
+    my $gaininfo = shift;
+    my %gainI;
 
-  unless ($aref){
-      return;
-  }
-  foreach my $line (@arr){
-      while ($line =~ /(NCBITaxon:[0-9]+)/g){
-						 
-      $taxons{$1} =1;
+    while($gaininfo =~ /(NCBITaxon:[0-9]+)/g){
+	$gainI{$1} =1;
     }
-  }
-  my @taxons = keys %taxons;
-  my $size = @taxons;
-  if ($size ==1){
-    return $taxons[0];
-  }
-  elsif ($size < 1){
-      return ;
-  }
+    
+    my $aref = shift;
+    my @arr = @$aref;
+    my %taxons;
+
+    unless ($aref){
+	return;
+    }
+    foreach my $line (@arr){
+	while ($line =~ /(NCBITaxon:[0-9]+)/g){	    
+	    $taxons{$1} =1;
+	}
+    }
+    
+    my @taxons;
+
+    foreach my $taxonL (keys %taxons){
+	my $I =1;
+	foreach my $taxonG (keys %gainI){	    
+	    my $skip_n = &Taxoncompare($taxonG,$taxonL);
+	    if ($skip_n == 1 or $skip_n == -1){
+		# $taxonL is mom of $taxonG; or $taxonL is equal to $taxonG
+		$I = 2; last;		
+	    }
+	}
+	if ($I ==1){
+	    push(@taxons,$taxonL);
+	}
+    }
+
+    my $size = @taxons;
+    
+    
+    if ($size ==1){
+	my $taxonL = $taxons[0];
+	return $taxons[0];
+    }
+    elsif ($size < 1){
+	return ;
+    }
   else{
     my $rest;
     %skip = ();
