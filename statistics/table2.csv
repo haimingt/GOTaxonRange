@@ -1,0 +1,5 @@
+,Total number of GO terms, GO terms with at least 1 none-root constraint, GO terms with Loss taxonomic ranges, GO terms with more than 1 Gain taxonomic ranges
+biological_process,30036,17098 (56.93%),9525 (31.71%),10284 (34.24%)
+molecular_function,11355,1185 (10.44%),142 (1.25%),163 (1.44%)
+cellular_component,4199,3488 (83.07%),575 (13.69%),476 (11.34%)
+Total,45590,21771 (47.75%),10242 (22.47%),10923 (23.96%)

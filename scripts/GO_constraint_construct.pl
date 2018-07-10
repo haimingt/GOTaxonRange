@@ -687,9 +687,9 @@ sub combineCycle{
 	my @loss = keys %losstaxons;
 	if (@loss){
 	    # basically, a loss contraint should not be older than the gain constraints
-	    my $gaininfo = $combineCons{$goterm}{'Gain'}.";".$combineCons{$goterm}{'Chebi'};
+#	    my $gaininfo = $combineCons{$goterm}{'Gain'}.";".$combineCons{$goterm}{'Chebi'};
 	    
-	    my $loss = &mostTaxonLoss($gaininfo,\@loss);
+	    my $loss = &mostTaxonLoss(\@loss);
 	    my $source;
 	    while($loss =~ /(NCBITaxon:[0-9]+)/g){
 		foreach my $type (keys %{$losstaxons{$1}}){
@@ -764,12 +764,12 @@ sub mostTaxon{
 sub mostTaxonLoss{
     # return the oldest ceancestors from a group
     
-    my $gaininfo = shift;
-    my %gainI;
+#    my $gaininfo = shift;
+#    my %gainI;
 
-    while($gaininfo =~ /(NCBITaxon:[0-9]+)/g){
-	$gainI{$1} =1;
-    }
+#    while($gaininfo =~ /(NCBITaxon:[0-9]+)/g){
+#	$gainI{$1} =1;
+ #   }
     
     my $aref = shift;
     my @arr = @$aref;
@@ -784,8 +784,9 @@ sub mostTaxonLoss{
 	}
     }
     
-    my @taxons;
+    my @taxons = keys %taxons;
 
+=pod
     foreach my $taxonL (keys %taxons){
 	my $I =1;
 	foreach my $taxonG (keys %gainI){	    
@@ -799,7 +800,7 @@ sub mostTaxonLoss{
 	    push(@taxons,$taxonL);
 	}
     }
-
+=cut
     my $size = @taxons;
     
     

@@ -1377,7 +1377,7 @@ $VAR1 = {
                             '4' => '>Chebi|NCBITaxon:1'
                           },
           'GO:0003705' => {
-                            '2' => 'Loss|NCBITaxon:4891;Loss|NCBITaxon:147554;'
+                            '2' => 'Loss|NCBITaxon:147554;Loss|NCBITaxon:4891;'
                           },
           'GO:0003707' => {
                             '4' => '>Chebi|NCBITaxon:2759'
@@ -1836,7 +1836,7 @@ $VAR1 = {
                             '3' => 'Gain|NCBITaxon:2759;'
                           },
           'GO:0005813' => {
-                            '2' => 'Loss|NCBITaxon:27896;Loss|NCBITaxon:33090;Loss|NCBITaxon:4751;'
+                            '2' => 'Loss|NCBITaxon:4751;Loss|NCBITaxon:33090;Loss|NCBITaxon:27896;'
                           },
           'GO:0005815' => {
                             '3' => 'Gain|NCBITaxon:2759;'
@@ -1892,7 +1892,7 @@ $VAR1 = {
                             '3' => 'Gain|NCBITaxon:6072;'
                           },
           'GO:0005929' => {
-                            '2' => 'Loss|NCBITaxon:4890;Gain|NCBITaxon:2759;',
+                            '2' => 'Gain|NCBITaxon:2759;Loss|NCBITaxon:4890;',
                             '3' => 'Gain|NCBITaxon:2759;'
                           },
           'GO:0005933' => {
@@ -2412,7 +2412,7 @@ $VAR1 = {
                             '4' => '>Chebi|NCBITaxon:1'
                           },
           'GO:0006306' => {
-                            '2' => 'Loss|NCBITaxon:4895;Loss|NCBITaxon:4930;'
+                            '2' => 'Loss|NCBITaxon:4930;Loss|NCBITaxon:4895;'
                           },
           'GO:0006308' => {
                             '4' => '>Chebi|NCBITaxon:1'
@@ -3499,7 +3499,7 @@ $VAR1 = {
                             '4' => '>Chebi|NCBITaxon:1'
                           },
           'GO:0008203' => {
-                            '2' => 'Loss|NCBITaxon:4930;Loss|NCBITaxon:4895;',
+                            '2' => 'Loss|NCBITaxon:4895;Loss|NCBITaxon:4930;',
                             '4' => '>Chebi|NCBITaxon:1'
                           },
           'GO:0008204' => {
@@ -4261,7 +4261,7 @@ $VAR1 = {
                             '2' => 'Gain|NCBITaxon:33090;'
                           },
           'GO:0009507' => {
-                            '2' => 'Loss|NCBITaxon:4751;Loss|NCBITaxon:554915;Loss|NCBITaxon:33208;Loss|NCBITaxon:28009;'
+                            '2' => 'Loss|NCBITaxon:28009;Loss|NCBITaxon:4751;Loss|NCBITaxon:554915;Loss|NCBITaxon:33208;'
                           },
           'GO:0009509' => {
                             '2' => 'Gain|NCBITaxon:33090;'
@@ -4288,7 +4288,7 @@ $VAR1 = {
                             '2' => 'Gain|NCBITaxon:33090;'
                           },
           'GO:0009536' => {
-                            '2' => 'Loss|NCBITaxon:4751;Loss|NCBITaxon:554915;Loss|NCBITaxon:2157;Loss|NCBITaxon:2;Loss|NCBITaxon:33208;Loss|NCBITaxon:28009;',
+                            '2' => 'Loss|NCBITaxon:33208;Loss|NCBITaxon:2157;Loss|NCBITaxon:4751;Loss|NCBITaxon:28009;Loss|NCBITaxon:554915;Loss|NCBITaxon:2;',
                             '3' => 'Gain|NCBITaxon:33090;NCBITaxon:5794;'
                           },
           'GO:0009538' => {
@@ -4413,7 +4413,7 @@ $VAR1 = {
                             '2' => 'Gain|NCBITaxon:33090;'
                           },
           'GO:0009657' => {
-                            '2' => 'Loss|NCBITaxon:4751;Loss|NCBITaxon:554915;Loss|NCBITaxon:33208;Loss|NCBITaxon:28009;'
+                            '2' => 'Loss|NCBITaxon:554915;Loss|NCBITaxon:28009;Loss|NCBITaxon:4751;Loss|NCBITaxon:33208;'
                           },
           'GO:0009664' => {
                             '2' => 'Gain|NCBITaxon:33090;'
@@ -4622,7 +4622,7 @@ $VAR1 = {
                           },
           'GO:0009888' => {
                             '1' => 'Gain|NCBITaxon:33208;',
-                            '2' => 'Loss|NCBITaxon:33630;Gain|NCBITaxon:2759;Loss|NCBITaxon:38254;Loss|NCBITaxon:33682;Loss|NCBITaxon:4891;Loss|NCBITaxon:147554;'
+                            '2' => 'Loss|NCBITaxon:147554;Loss|NCBITaxon:33682;Gain|NCBITaxon:2759;Loss|NCBITaxon:4891;Loss|NCBITaxon:38254;Loss|NCBITaxon:33630;'
                           },
           'GO:0009908' => {
                             '1' => 'Gain|NCBITaxon:33090;',
@@ -9411,7 +9411,7 @@ $VAR1 = {
                             '4' => '>Chebi|NCBITaxon:40674'
                           },
           'GO:0032501' => {
-                            '2' => 'Gain|NCBITaxon:2759;Loss|NCBITaxon:4932;Loss|NCBITaxon:4896;',
+                            '2' => 'Gain|NCBITaxon:2759;Loss|NCBITaxon:4896;Loss|NCBITaxon:4932;',
                             '3' => 'Gain|NCBITaxon:451864;NCBITaxon:3193;NCBITaxon:33208;NCBITaxon:5782;>Loss|NCBITaxon:4892;NCBITaxon:4896;'
                           },
           'GO:0032526' => {
@@ -13982,7 +13982,7 @@ $VAR1 = {
                             '2' => 'Gain|NCBITaxon:2759;'
                           },
           'GO:0051644' => {
-                            '2' => 'Loss|NCBITaxon:4751;Loss|NCBITaxon:554915;Loss|NCBITaxon:33208;Loss|NCBITaxon:28009;'
+                            '2' => 'Loss|NCBITaxon:33208;Loss|NCBITaxon:4751;Loss|NCBITaxon:28009;Loss|NCBITaxon:554915;'
                           },
           'GO:0051663' => {
                             '2' => 'Gain|NCBITaxon:6656;'
@@ -17921,7 +17921,7 @@ $VAR1 = {
                           },
           'GO:0097727' => {
                             '1' => 'Gain|NCBITaxon:33090;',
-                            '2' => 'Loss|NCBITaxon:3312;Gain|NCBITaxon:35493;Loss|NCBITaxon:3176;Loss|NCBITaxon:3378;Loss|NCBITaxon:3398;'
+                            '2' => 'Loss|NCBITaxon:3398;Gain|NCBITaxon:35493;Loss|NCBITaxon:3312;Loss|NCBITaxon:3176;Loss|NCBITaxon:3378;'
                           },
           'GO:0097733' => {
                             '1' => 'Gain|NCBITaxon:6072;'

@@ -1,0 +1,25 @@
+Taxon id and name,,biological_process,molecular_function,cellular_component,Total,Gain/Loss Total
+NCBITaxon:1,Gain,9604,2466,90,12160,12160
+(root),Loss,,,,0,13.52%
+NCBITaxon:3193,Gain,9633,151,232,10016,10082
+(Embryophyta),Loss,66,,,66,11.21%
+NCBITaxon:451864,Gain,8434,111,228,8773,9678
+(Dikarya),Loss,894,10,1,905,10.76%
+NCBITaxon:5782,Gain,8275,105,219,8599,8599
+(Dictyostelium),Loss,,,,0,9.56%
+NCBITaxon:4896,Gain,75,,,75,6307
+(Schizosaccharomyces pombe),Loss,5907,100,225,6232,7.01%
+NCBITaxon:4892,Gain,68,,,68,6284
+(Saccharomycetales),Loss,5901,100,215,6216,6.98%
+NCBITaxon:2759,Gain,3573,637,1244,5454,5489
+(Eukaryota),Loss,17,3,15,35,6.10%
+NCBITaxon:6072,Gain,3064,90,285,3439,3514
+(Eumetazoa),Loss,75,,,75,3.91%
+NCBITaxon:7742,Gain,3080,20,51,3151,3162
+(Vertebrata <Metazoa>),Loss,9,,2,11,3.51%
+NCBITaxon:131567,Gain,1320,138,1187,2645,2645
+(cellular organisms),Loss,,,,0,2.94%
+other taxa,Gain,7234,307,1108,8649,20576
+,Loss,10820,71,1036,11927,22.87%
+Total,Gain,54360,4025,4644,63029,89970
+,Loss,23689,284,1494,25467,

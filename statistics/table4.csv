@@ -1,0 +1,5 @@
+,ManualCuration,Only/Never_in taxon,UBERON/PO/FAO/CL,Chebi/PR,Total from all sources
+molecular_function,10,31,0,822,863 (12.47%)
+cellular_component,73,197,82,7,359 (5.19%)
+biological_process,128,391,2501,2882,5902 (85.29%)
+Total,211 (3.05%),619 (8.95%),2583 (37.33%),3711 (53.63%),6920
